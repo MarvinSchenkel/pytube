@@ -145,18 +145,12 @@ def get_initial_function_name(js: str) -> str:
     """
 
     function_patterns = [
-        r"\b[cs]\s*&&\s*[adf]\.set\([^,]+\s*,\s*encodeURIComponent\s*\(\s*(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
-        r"\b[a-zA-Z0-9]+\s*&&\s*[a-zA-Z0-9]+\.set\([^,]+\s*,\s*encodeURIComponent\s*\(\s*(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
-        r'(?:\b|[^a-zA-Z0-9$])(?P<sig>[a-zA-Z0-9$]{2})\s*=\s*function\(\s*a\s*\)\s*{\s*a\s*=\s*a\.split\(\s*""\s*\)',  # noqa: E501
-        r'(?P<sig>[a-zA-Z0-9$]+)\s*=\s*function\(\s*a\s*\)\s*{\s*a\s*=\s*a\.split\(\s*""\s*\)',  # noqa: E501
-        r'(["\'])signature\1\s*,\s*(?P<sig>[a-zA-Z0-9$]+)\(',
-        r"\.sig\|\|(?P<sig>[a-zA-Z0-9$]+)\(",
-        r"yt\.akamaized\.net/\)\s*\|\|\s*.*?\s*[cs]\s*&&\s*[adf]\.set\([^,]+\s*,\s*(?:encodeURIComponent\s*\()?\s*(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
-        r"\b[cs]\s*&&\s*[adf]\.set\([^,]+\s*,\s*(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
-        r"\b[a-zA-Z0-9]+\s*&&\s*[a-zA-Z0-9]+\.set\([^,]+\s*,\s*(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
-        r"\bc\s*&&\s*a\.set\([^,]+\s*,\s*\([^)]*\)\s*\(\s*(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
-        r"\bc\s*&&\s*[a-zA-Z0-9]+\.set\([^,]+\s*,\s*\([^)]*\)\s*\(\s*(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
-        r"\bc\s*&&\s*[a-zA-Z0-9]+\.set\([^,]+\s*,\s*\([^)]*\)\s*\(\s*(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
+        r"[a-zA-Z0-9$]+\s*&&\s*[a-zA-Z0-9$]+\.set\([^,]+\s*,\s*encodeURIComponent\s*\(\s*(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
+        r'(?P<sig>[a-zA-Z0-9\$]+)\s*=\s*function\(\s*(?P<arg>\w+)\s*\)\s*{\s*(?P=arg)\s*=\s*(?P=arg)\.split\(\s*""\s*\)',  # noqa: E501
+        r'(?P<quotes>["\'])signature(?P=quotes)\s*,\s*(?P<sig>[a-zA-Z0-9$]+)\(',
+        r"\.sig\s*\|\|\s*(?P<sig>[a-zA-Z0-9$]+)\s*\(",
+        r"yt\.akamaized\.net/\)\s*\|\|\s*.*?\s*[a-zA-Z0-9$]+\s*&&\s*[a_zA-Z0-9$]+\.set\([^,]+\s*,\s*(?:encodeURIComponent\s*\()?\s*(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
+        r"[a-zA-Z0-9$]+\s*&&\s*[a-zA-Z0-9$]+\.set\([^,]+\s*,\s*(?:\([^)]*\)\s*\(\s*)?(?P<sig>[a-zA-Z0-9$]+)\(",  # noqa: E501
     ]
     logger.debug("finding initial function name")
     for pattern in function_patterns:
@@ -164,7 +158,7 @@ def get_initial_function_name(js: str) -> str:
         function_match = regex.search(js)
         if function_match:
             logger.debug("finished regex search, matched: %s", pattern)
-            return function_match.group(1)
+            return function_match.group("sig")
 
     raise RegexMatchError(
         caller="get_initial_function_name", pattern="multiple"
@@ -192,7 +186,7 @@ def get_transform_plan(js: str) -> List[str]:
     'DE.kT(a,21)']
     """
     name = re.escape(get_initial_function_name(js))
-    pattern = r"%s=function\(\w\){[a-z=\.\(\"\)]*;(.*);(?:.+)}" % name
+    pattern = r"(?:^|[^\w$])%s=function\(\w\){[a-z=\.\(\"\)]*;(.*);(?:.+)}" % name
     logger.debug("getting transform plan")
     return regex_search(pattern, js, group=1).split(";")
 
@@ -269,7 +263,7 @@ def get_throttling_function_name(js: str) -> str:
         # a.C && (b = a.get("n")) && (b = Bpa[0](b), a.set("n", b),
         # Bpa.length || iha("")) }};
         # In the above case, `iha` is the relevant function name
-        r'a\.[a-zA-Z]\s*&&\s*\([a-z]\s*=\s*a\.get\("n"\)\)\s*&&\s*'
+        r'a\.[a-zA-Z]\s*&&\s*\([a-z]\s*=\s*a\.get\("n"\)\)\s*&&.*?\|\|\s*([a-z]+)',
         r'\([a-z]\s*=\s*([a-zA-Z0-9$]+)(\[\d+\])?\([a-z]\)',
     ]
     logger.debug('Finding throttling function name')
